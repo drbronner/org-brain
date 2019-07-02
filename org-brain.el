@@ -279,6 +279,8 @@ Insert links using `org-insert-link'."
 
 (defvar org-brain-pins nil "List of pinned org-brain entries.")
 
+(defvar org-brain-selected nil "List of selected org-brain entries.")
+
 ;;;###autoload
 (defun org-brain-update-id-locations ()
   "Scan `org-brain-files' using `org-id-update-id-locations'."
@@ -1312,6 +1314,102 @@ If STATUS is omitted, toggle between pinned / not pinned."
   (org-brain--revert-if-visualizing))
 
 ;;;###autoload
+(defun org-brain-select (entry &optional status)
+  "Change if ENTRY is selected or not.
+If run interactively, get ENTRY from context.
+
+If STATUS is positive, select the entry.  If negative, unselect it.
+If STATUS is omitted, toggle between selected / not selected."
+  (interactive (list (org-brain-entry-at-pt)))
+  (cond ((eq status nil)
+         (if (member entry org-brain-selected)
+             (org-brain-select entry -1)
+           (org-brain-select entry 1)))
+        ((>= status 1)
+         (if (member entry org-brain-selected)
+             (error "Entry is already selected")
+           (push entry org-brain-selected)
+           (org-brain-save-data)
+           (message "Entry selected.")))
+        ((< status 1)
+         (if (member entry org-brain-selected)
+             (progn
+               (setq org-brain-selected (delete entry org-brain-selected))
+               (org-brain-save-data)
+               (message "Entry unselected."))
+           (error "Entry isn't selected"))))
+  (org-brain--revert-if-visualizing))
+
+(defun org-brain-clear-selected ()
+  "Clear the selected list"
+  (interactive)
+  (setq org-brain-selected nil)
+  (org-brain--revert-if-visualizing))
+
+(defun org-brain-add-selected-children (entry)
+  "Add selected entries as children of ENTRY.
+If run interactively, get ENTRY from context.
+
+When ENTRY is in the selected list, it is ignored."
+  (interactive (list (org-brain-entry-at-pt)))
+  ;; org-brain-add-child takes a list of children,
+  ;; but we call it one at a time
+  ;; so that errors don't interrupt the bulk operation.
+  (dolist (child org-brain-selected)
+    (ignore-errors (org-brain-add-child entry (list child)))))
+
+(defun org-brain-remove-selected-children (entry)
+  "Remove selected entries from the list of ENTRY's children
+If run interactively, get ENTRY from context.
+
+Ignores selected entries that are not children of ENTRY."
+  (interactive (list (org-brain-entry-at-pt)))
+  (dolist (child org-brain-selected)
+    (ignore-errors (org-brain-remove-child entry child))))
+
+(defun org-brain-add-selected-parents (entry)
+  "Add selected entries as parents of ENTRY.
+If run interactively, get ENTRY from context.
+
+When ENTRY is in the selected list, it is ignored."
+  (interactive (list (org-brain-entry-at-pt)))
+  ;; org-brain-add-parent takes a list of parents,
+  ;; but we call it one at a time
+  ;; so that errors don't interrupt the bulk operation.
+  (dolist (parent org-brain-selected)
+    (ignore-errors (org-brain-add-parent entry (list parent)))))
+
+(defun org-brain-remove-selected-parents (entry)
+  "Remove selected entries from the list of ENTRY's parents
+If run interactively, get ENTRY from context.
+
+Ignores selected entries that are not parents of ENTRY."
+  (interactive (list (org-brain-entry-at-pt)))
+  (dolist (parent org-brain-selected)
+    (ignore-errors (org-brain-remove-parent entry parent))))
+
+(defun org-brain-add-selected-friendships (entry)
+  "Add selected entries as friends of ENTRY.
+If run interactively, get ENTRY from context.
+
+When ENTRY is in the selected list, it is ignored."
+  (interactive (list (org-brain-entry-at-pt)))
+  ;; org-brain-add-parent takes a list of friends,
+  ;; but we call it one at a time
+  ;; so that errors don't interrupt the bulk operation.
+  (dolist (friend org-brain-selected)
+    (ignore-errors (org-brain-add-friendship entry (list friend)))))
+
+(defun org-brain-remove-selected-friendships (entry)
+    "Remove selected entries from the list of ENTRY's friends
+If run interactively, get ENTRY from context.
+
+Ignores selected entries that are not friends of ENTRY."
+  (interactive (list (org-brain-entry-at-pt)))
+  (dolist (selected org-brain-selected)
+    (ignore-errors (org-brain-remove-friendship entry selected))))
+
+;;;###autoload
 (defun org-brain-set-title (entry title)
   "Set the name of ENTRY to TITLE.
 If run interactively, get ENTRY from context and prompt for TITLE."
@@ -1523,6 +1621,7 @@ Unless WANDER is t, `org-brain-stop-wandering' will be run."
           (entry-pos))
       (delete-region (point-min) (point-max))
       (org-brain--vis-pinned)
+      (org-brain--vis-selected)
       (if org-brain-visualizing-mind-map
           (setq entry-pos (org-brain-mind-map org-brain--vis-entry org-brain-mind-map-parent-level org-brain-mind-map-child-level))
         (insert "\n\n")
@@ -1754,6 +1853,8 @@ See `org-brain-add-resource'."
 (define-key org-brain-visualize-mode-map "*" 'org-brain-add-child-headline)
 (define-key org-brain-visualize-mode-map "h" 'org-brain-add-child-headline)
 (define-key org-brain-visualize-mode-map "n" 'org-brain-pin)
+(define-key org-brain-visualize-mode-map ";" 'org-brain-select)
+(define-key org-brain-visualize-mode-map ":" 'org-brain-clear-selected)
 (define-key org-brain-visualize-mode-map "t" 'org-brain-set-title)
 (define-key org-brain-visualize-mode-map "j" 'forward-button)
 (define-key org-brain-visualize-mode-map "k" 'backward-button)
@@ -1790,6 +1891,15 @@ Helper function for `org-brain-visualize'."
   (dolist (pin (sort (copy-sequence org-brain-pins) org-brain-visualize-sort-function))
     (insert "  ")
     (org-brain-insert-visualize-button pin 'org-brain-pinned))
+  (insert "\n"))
+
+(defun org-brain--vis-selected ()
+  "Insert selected entries.
+Helper function for `org-brain-visualize'."
+  (insert "SELECTED:")
+  (dolist (selection (sort (copy-sequence org-brain-selected) org-brain-visualize-sort-function))
+    (insert "  ")
+    (org-brain-insert-visualize-button selection 'org-brain-pinned))
   (insert "\n"))
 
 (defun org-brain--insert-wire (&rest strings)
