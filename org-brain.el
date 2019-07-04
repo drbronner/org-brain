@@ -260,6 +260,9 @@ Insert links using `org-insert-link'."
   '((t . (:inherit org-brain-button)))
   "Face for pinned entries.")
 
+(defface org-brain-selected
+  '((t . (:inherit org-brain-button)))
+  "Face for selected entries.")
 
 ;; * API
 
@@ -1716,7 +1719,9 @@ cancelled manually with `org-brain-stop-wandering'."
    'follow-link t
    'help-echo (org-brain-description entry)
    'aa2u-text t
-   'face (or face 'org-brain-button)))
+   'face (if (member entry org-brain-selected)
+             'org-brain-selected
+           (or face 'org-brain-button))))
 
 (defun org-brain-insert-resource-button (resource &optional indent)
   "Insert a new line with a RESOURCE button, indented by INDENT spaces."
@@ -1900,7 +1905,7 @@ Helper function for `org-brain-visualize'."
     (insert "SELECTED:")
     (dolist (selection (sort (copy-sequence org-brain-selected) org-brain-visualize-sort-function))
       (insert "  ")
-      (org-brain-insert-visualize-button selection 'org-brain-pinned))
+      (org-brain-insert-visualize-button selection 'org-brain-selected))
     (insert "\n")))
 
 (defun org-brain--insert-wire (&rest strings)
