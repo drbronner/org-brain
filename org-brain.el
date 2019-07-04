@@ -1896,11 +1896,12 @@ Helper function for `org-brain-visualize'."
 (defun org-brain--vis-selected ()
   "Insert selected entries.
 Helper function for `org-brain-visualize'."
-  (insert "SELECTED:")
-  (dolist (selection (sort (copy-sequence org-brain-selected) org-brain-visualize-sort-function))
-    (insert "  ")
-    (org-brain-insert-visualize-button selection 'org-brain-pinned))
-  (insert "\n"))
+  (unless (null org-brain-selected)
+    (insert "SELECTED:")
+    (dolist (selection (sort (copy-sequence org-brain-selected) org-brain-visualize-sort-function))
+      (insert "  ")
+      (org-brain-insert-visualize-button selection 'org-brain-pinned))
+    (insert "\n")))
 
 (defun org-brain--insert-wire (&rest strings)
   "Helper function for drawing fontified wires in the org-brain visualization buffer."
