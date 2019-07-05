@@ -1787,7 +1787,7 @@ See `org-brain-add-resource'."
   "Insert pinned entries.
 Helper function for `org-brain-visualize'."
   (insert "PINNED:")
-  (dolist (pin (sort (copy-sequence org-brain-pins) org-brain-visualize-sort-function))
+  (dolist (pin (reverse org-brain-pins))
     (insert "  ")
     (org-brain-insert-visualize-button pin 'org-brain-pinned))
   (insert "\n"))
