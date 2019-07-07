@@ -1523,6 +1523,11 @@ Unless WANDER is t, `org-brain-stop-wandering' will be run."
           (entry-pos))
       (delete-region (point-min) (point-max))
       (org-brain--vis-pinned)
+      (when (and (not nohistory)
+                 (not (equal entry (car org-brain--vis-history))))
+        (setq org-brain--vis-history (seq-take org-brain--vis-history 15))
+        (push entry org-brain--vis-history))
+      (org-brain--vis-history)
       (if org-brain-visualizing-mind-map
           (setq entry-pos (org-brain-mind-map org-brain--vis-entry org-brain-mind-map-parent-level org-brain-mind-map-child-level))
         (insert "\n\n")
@@ -1548,11 +1553,7 @@ Unless WANDER is t, `org-brain-stop-wandering' will be run."
         (org-brain-visualize-mode))
       (goto-char entry-pos))
     (unless nofocus
-      (pop-to-buffer "*org-brain*")
-      (when (and (not nohistory)
-                 (not (equal entry (car org-brain--vis-history)))
-                 (< (length org-brain--vis-history) 15))
-        (push entry org-brain--vis-history)))))
+      (pop-to-buffer "*org-brain*"))))
 
 ;;;###autoload
 (defun org-brain-visualize-entry-at-pt ()
@@ -1792,6 +1793,15 @@ Helper function for `org-brain-visualize'."
     (org-brain-insert-visualize-button pin 'org-brain-pinned))
   (insert "\n"))
 
+(defun org-brain--vis-history ()
+  "Insert the 5 most recently visited entries
+Helper function for `org-brain-visualize'."
+  (insert "HISTORY:")
+  (dolist (entry (reverse (cdr (seq-take org-brain--vis-history 6))))
+    (insert "  ")
+    (org-brain-insert-visualize-button entry 'org-brain-pinned))
+  (insert "\n"))
+
 (defun org-brain--insert-wire (&rest strings)
   "Helper function for drawing fontified wires in the org-brain visualization buffer."
   (insert (propertize (apply 'concat strings) 'face 'org-brain-wires)))
@@ -1808,7 +1818,7 @@ Helper function for `org-brain-visualize'."
         (let ((children-links (cdr parent))
               (col-start (+ 3 max-width))
               (parent-title (org-brain-title (car parent))))
-          (org-goto-line 4)
+          (org-goto-line 5)
           (mapc
            (lambda (child)
              (picture-forward-column col-start)
@@ -1817,7 +1827,7 @@ Helper function for `org-brain-visualize'."
              (setq max-width (max max-width (current-column)))
              (newline (forward-line 1)))
            (sort children-links org-brain-visualize-sort-function))
-          (org-goto-line 4)
+          (org-goto-line 5)
           (forward-line (1- (length children-links)))
           (picture-forward-column col-start)
           (push (cons (picture-current-line)
