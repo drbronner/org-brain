@@ -98,6 +98,11 @@ If 'root, only choose from file entries in `org-brain-path' (non-recursive)."
   :group 'org-brain
   :type '(boolean))
 
+(defcustom org-brain-show-history t
+  "Should the last 5 entries visited be shown in `org-brain-visualize'?"
+  :group 'org-brain
+  :type '(boolean))
+
 (defcustom org-brain-quit-after-goto nil
   "Should the *org-brain* buffer window close itself after executing a goto command?"
   :group 'org-brain
@@ -1528,7 +1533,7 @@ Unless WANDER is t, `org-brain-stop-wandering' will be run."
               (seq-filter (lambda (elt) (not (equal elt entry))) org-brain--vis-history))
         (setq org-brain--vis-history (seq-take org-brain--vis-history 15))
         (push entry org-brain--vis-history))
-      (org-brain--vis-history)
+      (when org-brain-show-history (org-brain--vis-history))
       (if org-brain-visualizing-mind-map
           (setq entry-pos (org-brain-mind-map org-brain--vis-entry org-brain-mind-map-parent-level org-brain-mind-map-child-level))
         (insert "\n\n")
