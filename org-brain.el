@@ -1523,8 +1523,9 @@ Unless WANDER is t, `org-brain-stop-wandering' will be run."
           (entry-pos))
       (delete-region (point-min) (point-max))
       (org-brain--vis-pinned)
-      (when (and (not nohistory)
-                 (not (equal entry (car org-brain--vis-history))))
+      (when (not nohistory)
+        (setq org-brain--vis-history
+              (seq-filter (lambda (elt) (not (equal elt entry))) org-brain--vis-history))
         (setq org-brain--vis-history (seq-take org-brain--vis-history 15))
         (push entry org-brain--vis-history))
       (org-brain--vis-history)
@@ -1797,7 +1798,7 @@ Helper function for `org-brain-visualize'."
   "Insert the 5 most recently visited entries
 Helper function for `org-brain-visualize'."
   (insert "HISTORY:")
-  (dolist (entry (reverse (cdr (seq-take org-brain--vis-history 6))))
+  (dolist (entry (reverse (seq-take org-brain--vis-history 5)))
     (insert "  ")
     (org-brain-insert-visualize-button entry 'org-brain-pinned))
   (insert "\n"))
