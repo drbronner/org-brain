@@ -848,14 +848,23 @@ PROPERTY could for instance be BRAIN_CHILDREN."
          (if (org-brain-filep entry)
              ;; File entry
              (mapcar
-              (lambda (x) (or (org-brain-entry-from-id x) x))
+              (lambda (x) (let ((id (if (and (>= (string-width x) 3)
+                                             (string= "id:" (substring x 0 3)))
+                                        (substring x 3)
+                                      x)))
+                            (or (org-brain-entry-from-id id) id)))
               (mapcar #'org-entry-restore-space
                       (when-let ((kw-values (cdr (assoc property
                                                         (org-brain-keywords entry)))))
                         (org-split-string kw-values "[ \t]"))))
            ;; Headline entry
            (mapcar
-            (lambda (x) (or (org-brain-entry-from-id x) x))
+            (lambda (x)
+              (let ((id (if (and (>= (string-width x) 3)
+                                 (string= "id:" (substring x 0 3)))
+                            (substring x 3)
+                          x)))
+                (or (org-brain-entry-from-id id) id)))
             (org-entry-get-multivalued-property (org-brain-entry-marker entry) property)))))
     (if (equal propertylist '("")) nil propertylist)))
 
@@ -870,29 +879,29 @@ PROPERTY could for instance be BRAIN_CHILDREN."
         (with-current-buffer (find-file-noselect (org-brain-entry-path parent))
           (goto-char (point-min))
           (if (re-search-forward "^#\\+BRAIN_CHILDREN:.*$" nil t)
-              (insert (concat " " (org-brain-entry-identifier child)))
-            (insert (concat "#+BRAIN_CHILDREN: "
+              (insert (concat " id:" (org-brain-entry-identifier child)))
+            (insert (concat "#+BRAIN_CHILDREN: id:"
                             (org-brain-entry-identifier child)
                             "\n\n")))
           (save-buffer))
       ;; Parent = Headline
       (org-entry-add-to-multivalued-property (org-brain-entry-marker parent)
                                              "BRAIN_CHILDREN"
-                                             (org-brain-entry-identifier child)))
+                                             (concat "id:" (org-brain-entry-identifier child))))
     (if (org-brain-filep child)
         ;; Child = File
         (with-current-buffer (find-file-noselect (org-brain-entry-path child))
           (goto-char (point-min))
           (if (re-search-forward "^#\\+BRAIN_PARENTS:.*$" nil t)
-              (insert (concat " " (org-brain-entry-identifier parent)))
-            (insert (concat "#+BRAIN_PARENTS: "
+              (insert (concat " id:" (org-brain-entry-identifier parent)))
+            (insert (concat "#+BRAIN_PARENTS: id:"
                             (org-brain-entry-identifier parent)
                             "\n\n")))
           (save-buffer))
       ;; Child = Headline
       (org-entry-add-to-multivalued-property (org-brain-entry-marker child)
                                              "BRAIN_PARENTS"
-                                             (org-brain-entry-identifier parent)))
+                                             (concat "id:" (org-brain-entry-identifier parent))))
     (org-save-all-org-buffers)))
 
 (defun org-brain-remove-line-if-matching (regex)
@@ -912,7 +921,7 @@ PROPERTY could for instance be BRAIN_CHILDREN."
         (goto-char (point-min))
         (re-search-forward "^#\\+BRAIN_CHILDREN:.*$")
         (beginning-of-line)
-        (re-search-forward (concat " " (org-brain-entry-identifier child)))
+        (re-search-forward (concat " \\(id:\\)?" (org-brain-entry-identifier child)))
         (replace-match "")
         (org-brain-remove-line-if-matching "^#\\+BRAIN_CHILDREN:[[:space:]]*$")
         (org-brain-remove-line-if-matching "^[[:space:]]*$")
@@ -920,14 +929,14 @@ PROPERTY could for instance be BRAIN_CHILDREN."
     ;; Parent = Headline
     (org-entry-remove-from-multivalued-property (org-brain-entry-marker parent)
                                                 "BRAIN_CHILDREN"
-                                                (org-brain-entry-identifier child)))
+                                                (concat "id:" (org-brain-entry-identifier child))))
   (if (org-brain-filep child)
       ;; Child = File
       (with-current-buffer (find-file-noselect (org-brain-entry-path child))
         (goto-char (point-min))
         (re-search-forward "^#\\+BRAIN_PARENTS:.*$")
         (beginning-of-line)
-        (re-search-forward (concat " " (org-brain-entry-identifier parent)))
+        (re-search-forward (concat " \\(id:\\)?" (org-brain-entry-identifier parent)))
         (replace-match "")
         (org-brain-remove-line-if-matching "^#\\+BRAIN_PARENTS:[[:space:]]*$")
         (org-brain-remove-line-if-matching "^[[:space:]]*$")
@@ -935,7 +944,7 @@ PROPERTY could for instance be BRAIN_CHILDREN."
     ;; Child = Headline
     (org-entry-remove-from-multivalued-property (org-brain-entry-marker child)
                                                 "BRAIN_PARENTS"
-                                                (org-brain-entry-identifier parent)))
+                                                (concat "id:" (org-brain-entry-identifier parent))))
   (org-save-all-org-buffers))
 
 ;;;; Buffer commands
@@ -1038,15 +1047,15 @@ If ONEWAY is t, add ENTRY2 as friend of ENTRY1, but not the other way around."
         (with-current-buffer (find-file-noselect (org-brain-entry-path entry1))
           (goto-char (point-min))
           (if (re-search-forward "^#\\+BRAIN_FRIENDS:.*$" nil t)
-              (insert (concat " " (org-brain-entry-identifier entry2)))
-            (insert (concat "#+BRAIN_FRIENDS: "
+              (insert (concat " id:" (org-brain-entry-identifier entry2)))
+            (insert (concat "#+BRAIN_FRIENDS: id:"
                             (org-brain-entry-identifier entry2)
                             "\n\n")))
           (save-buffer))
       ;; Entry1 = Headline
       (org-entry-add-to-multivalued-property (org-brain-entry-marker entry1)
                                              "BRAIN_FRIENDS"
-                                             (org-brain-entry-identifier entry2))))
+                                             (concat "id:" (org-brain-entry-identifier entry2)))))
   (unless oneway (org-brain--internal-add-friendship entry2 entry1 t))
   (org-save-all-org-buffers))
 
@@ -1079,7 +1088,7 @@ If run interactively, use `org-brain-entry-at-pt' as ENTRY1 and prompt for ENTRY
           (goto-char (point-min))
           (re-search-forward "^#\\+BRAIN_FRIENDS:.*$")
           (beginning-of-line)
-          (re-search-forward (concat " " (org-brain-entry-identifier entry2)))
+          (re-search-forward (concat " id:" (org-brain-entry-identifier entry2)))
           (replace-match "")
           (org-brain-remove-line-if-matching "^#\\+BRAIN_FRIENDS:[[:space:]]*$")
           (org-brain-remove-line-if-matching "^[[:space:]]*$")
@@ -1087,7 +1096,7 @@ If run interactively, use `org-brain-entry-at-pt' as ENTRY1 and prompt for ENTRY
       ;; Entry2 = Headline
       (org-entry-remove-from-multivalued-property (org-brain-entry-marker entry1)
                                                   "BRAIN_FRIENDS"
-                                                  (org-brain-entry-identifier entry2))))
+                                                  (concat "id:" (org-brain-entry-identifier entry2)))))
   (if oneway
       (org-brain--revert-if-visualizing)
     (org-brain-remove-friendship entry2 entry1 t))
