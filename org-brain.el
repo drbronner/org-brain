@@ -181,6 +181,11 @@ Only applies to headline entries."
   :group 'org-brain
   :type '(string))
 
+(defcustom org-brain-each-child-on-own-line-tag "ownline"
+  "`org-mode' tag which makes each child of the headline entry be listed on its own line."
+  :group 'org-brain
+  :type '(string))
+
 (defcustom org-brain-wander-interval 3
   "Seconds between randomized entries, when using `org-brain-visualize-wander'."
   :group 'org-brain
@@ -2147,7 +2152,10 @@ Helper function for `org-brain-visualize'."
   "Insert children of ENTRY.
 Helper function for `org-brain-visualize'."
   (when-let ((children (org-brain-children entry))
-             (fill-col (eval org-brain-child-fill-column-sexp)))
+             (fill-col (if (member org-brain-each-child-on-own-line-tag
+                                   (org-brain-get-tags entry t))
+                           0
+                         (eval org-brain-child-fill-column-sexp))))
     (insert "\n\n")
     (dolist (child (sort children org-brain-visualize-sort-function))
       (let ((child-title (org-brain-title child)))
