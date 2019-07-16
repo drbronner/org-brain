@@ -1398,6 +1398,102 @@ After refiling, all headlines will be given an id."
               (lambda () (org-map-tree 'org-id-get-create)))
     (org-refile)))
 
+(defun org-brain-refile-to (entry parent)
+  "Refile ENTRY to be a local child of PARENT, returning the new refiled entry.
+
+If ENTRY is linked to PARENT before the refile, this relationship is removed.
+Pins, history, and selected lists are updated
+to account for the change in ENTRY's local parent."
+  (when (member parent (org-brain--local-descendants entry))
+    (error "Cannot refile. New parent %s is a local descendant of %s"
+           (org-brain-title parent) (org-brain-title entry)))
+  (let ((entry-marker (org-brain-entry-marker entry))
+        (parent-title (org-brain-title parent)))
+    (if (org-brain-filep parent)
+        ;; Parent is a file entry
+        (let ((parent-path (org-brain-entry-path parent)))
+          (with-current-buffer (find-file-noselect parent-path)
+            (goto-char (point-max))
+            (insert "\n* temp headline")
+            (let ((newpoint (point)))
+              (org-with-point-at entry-marker
+                (org-refile nil nil (list parent-title parent-path "" newpoint))))
+            (outline-next-heading)
+            (org-promote-subtree)
+            (outline-previous-heading)
+            (org-cut-subtree)
+            (pop kill-ring)
+            (forward-line -1)
+            (org-brain-remove-line-if-matching "^[[:space:]]*$")))
+      ;; Parent is a headline entry
+      (let ((id (org-brain-entry-identifier parent)))
+        (pcase (org-id-find id)
+          (`(,file-name . ,pos)
+           (org-with-point-at entry-marker
+             (org-refile nil nil (list parent-title file-name "" pos))))
+          (_ (error "Parent headline with ID %s not found" id)))))
+    (let ((new-entry (org-brain-entry-from-id (org-brain-entry-identifier entry))))
+      (cl-flet ((replace-entry (e) (if (equal e entry) new-entry e)))
+        (setq org-brain-pins (mapcar 'replace-entry org-brain-pins))
+        (setq org-brain--vis-history (mapcar 'replace-entry org-brain--vis-history))
+        (setq org-brain-selected (mapcar 'replace-entry org-brain-selected)))
+      (when (member parent
+                    (org-brain--linked-property-entries new-entry "BRAIN_PARENTS"))
+          (org-brain-remove-relationship parent new-entry))
+      (org-save-all-org-buffers)
+      (when (eq major-mode 'org-brain-visualize-mode)
+        (org-brain-visualize new-entry))
+      new-entry)))
+
+;;;###autoload
+(defun org-brain-change-local-parent (entry parent)
+  "Refile ENTRY to be a local child of PARENT.
+Entries are relinked so existing parent-child relationships are unaffected.
+
+If called interactively, ENTRY is the current entry
+and PARENT is prompted for among the list of ENTRY's linked parents.
+Returns the new refiled entry."
+  (interactive
+   (let* ((this-entry (org-brain-entry-at-pt))
+          (linked-parents (org-brain--linked-property-entries this-entry "BRAIN_PARENTS"))
+          (chosen-parent (org-brain-choose-entry "Refile to parent: " linked-parents)))
+     (list this-entry chosen-parent)))
+  (let ((old-parent (car (org-brain--local-parent entry)))
+        (new-entry (org-brain-refile-to entry parent)))
+    (org-brain-add-relationship old-parent new-entry)
+    (org-brain--revert-if-visualizing)
+    new-entry))
+
+;;;###autoload
+(defun org-brain-unlink-child (entry child)
+  "Remove CHILD as a child of ENTRY.
+If CHILD is a local child of ENTRY, CHILD is refiled to another parent."
+  (interactive (let ((e (org-brain-entry-at-pt)))
+                 (list e (org-brain-choose-entry "Unlink child: "
+                                                 (org-brain-children e)
+                                                 nil t))))
+  (org-brain-unlink-parent child entry))
+
+;;;###autoload
+(defun org-brain-unlink-parent (entry parent)
+  "Remove PARENT as a parent of ENTRY.
+If ENTRY is a local child of PARENT,
+ENTRY is refiled to another parent, chosen by the function."
+  (interactive (let ((e (org-brain-entry-at-pt)))
+                 (list e (org-brain-choose-entry "Unlink parent: "
+                                                 (org-brain-parents e)
+                                                 nil t))))
+  (when (member parent (org-brain--local-parent entry))
+    (let* ((linked-parents (org-brain--linked-property-entries entry "BRAIN_PARENTS"))
+           (headline-parents (seq-filter (lambda (e) (not (org-brain-filep e))) linked-parents))
+           (file-parents (seq-filter 'org-brain-filep linked-parents))
+           (new-parent (car (append headline-parents file-parents))))
+      (when (null new-parent)
+        (error "Cannot unlink a headline entry's last parent"))
+      (setq entry (org-brain-change-local-parent entry new-parent))))
+  (org-brain-remove-relationship parent entry)
+  (org-brain--revert-if-visualizing))
+
 (defun org-brain--remove-relationships (entry &optional recursive)
   "Remove all external relationships from ENTRY.
 Also unpin and unselect the entry.
