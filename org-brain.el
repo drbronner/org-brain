@@ -263,6 +263,10 @@ Insert links using `org-insert-link'."
   '((t . (:inherit (font-lock-builtin-face org-brain-button))))
   "Face for the entries' header-entry parent nodes.")
 
+(defface org-brain-local-parent
+  '((t . (:inherit org-brain-parent :weight bold)))
+  "Face for the entries' header-entry parent nodes.")
+
 (defface org-brain-child
   '((t . (:inherit org-brain-button)))
   "Face for the entries' header-entry child nodes.")
@@ -2097,7 +2101,11 @@ Helper function for `org-brain-visualize'."
           (push (cons (picture-current-line)
                       (+ (current-column) (/ (string-width parent-title) 2)))
                 parent-positions)
-          (org-brain-insert-visualize-button (car parent) 'org-brain-parent)
+          (org-brain-insert-visualize-button
+           (car parent)
+           (if (member (car parent) (org-brain--local-parent entry))
+               'org-brain-local-parent
+             'org-brain-parent))
           (setq max-width (max max-width (current-column)))
           (when children-links
             (org-brain--insert-wire "-")
