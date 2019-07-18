@@ -246,29 +246,11 @@ Insert links using `org-insert-link'."
   :group 'org-brain
   :type '(string))
 
-(defun org-brain-file-face-attrs (face)
-  "Return a plist of the attributes of the file face that corresponds to FACE.
-Utility function for calculating the file-face attributes to pass to defface."
-  (labels ((alist->plist (alist)
-                         "Convert an ALIST to a plist."
-                         (pcase alist
-                           ('nil nil)
-                           (`((,h1 . ,h2) . ,tail) `(,h1 . (,h2 . ,(alist->plist tail)))))))
-    (append (alist->plist (face-all-attributes 'org-brain-file-face-template (selected-frame))) `(:inherit ,face))))
-
 ;; ** Faces
-
-(defface org-brain-file-face-template
-  '((t . (:slant italic)))
-  "Attributes of this face are applied to file-entry faces.")
 
 (defface org-brain-title
   '((t . (:inherit 'org-level-1)))
   "Face for the currently selected entry.")
-
-(defface org-brain-title-file
-  `((t . ,(org-brain-file-face-attrs 'org-brain-title)))
-  "face for the currently selected entry, if it is a file entry.")
 
 (defface org-brain-wires
   `((t . (:inherit 'font-lock-comment-face :italic nil)))
@@ -278,10 +260,6 @@ Utility function for calculating the file-face attributes to pass to defface."
   '((t . (:inherit button)))
   "Face for header-entry buttons in the org-brain visualize buffer.")
 
-(defface org-brain-button-file
-  `((t . ,(org-brain-file-face-attrs 'org-brain-button)))
-  "Face for file-entry buttons in the org-brain visualize buffer.")
-
 (defface org-brain-parent
   '((t . (:inherit (font-lock-builtin-face org-brain-button))))
   "Face for the entries' header-entry parent nodes.")
@@ -290,49 +268,33 @@ Utility function for calculating the file-face attributes to pass to defface."
   '((t . (:inherit org-brain-parent :weight bold)))
   "Face for the entries' header-entry parent nodes.")
 
-(defface org-brain-parent-file
-  `((t . ,(org-brain-file-face-attrs 'org-brain-parent)))
-  "Face for the entries' file-entry parent nodes.")
-
 (defface org-brain-child
   '((t . (:inherit org-brain-button)))
   "Face for the entries' header-entry child nodes.")
-
-(defface org-brain-child-file
-  `((t . ,(org-brain-file-face-attrs 'org-brain-child)))
-  "Face for the entries' file-entry child nodes.")
 
 (defface org-brain-sibling
   '((t . (:inherit org-brain-child)))
   "Face for the entries' header-entry sibling nodes.")
 
-(defface org-brain-sibling-file
-  `((t . ,(org-brain-file-face-attrs 'org-brain-sibling)))
-  "Face for the entries' file-entry sibling nodes.")
-
 (defface org-brain-friend
   '((t . (:inherit org-brain-button)))
   "Face for the entries' header-entry friend nodes.")
-
-(defface org-brain-friend-file
-  `((t . ,(org-brain-file-face-attrs 'org-brain-friend)))
-  "Face for the entries' file-entry friend nodes.")
 
 (defface org-brain-pinned
   '((t . (:inherit org-brain-button)))
   "Face for pinned header entries.")
 
-(defface org-brain-pinned-file
-  `((t . ,(org-brain-file-face-attrs 'org-brain-pinned)))
-  "Face for pinned file entries.")
-
 (defface org-brain-selected
   '((t . (:inherit org-brain-button)))
   "Face for selected header entries.")
 
-(defface org-brain-selected-file
-  `((t . ,(org-brain-file-face-attrs 'org-brain-selected)))
-  "Face for selected file entries.")
+(defface org-brain-file-face-template
+  '((t . (:slant italic)))
+  "Attributes of this face are applied to file-entry faces.")
+
+(defface org-brain-selected-face-template
+  '((t . '()))
+  "Attributes of this face are added to ")
 
 ;; * API
 
@@ -1831,16 +1793,31 @@ cancelled manually with `org-brain-stop-wandering'."
    (org-brain-title entry (or (not org-brain-visualizing-mind-map)
                               org-brain-cap-mind-map-titles)))
 
+(defun org-brain-specified-face-attrs (face &optional frame)
+  "Return a plist of all face attributes of FACE that are not `unspecified'.
+If FRAME is not specified, `selected-frame' is used."
+  (cl-labels ((alist->plist (alist)
+                            (pcase alist
+                              ('nil nil)
+                              (`((,h1 . ,h2) . ,tail) `(,h1 . (,h2 . ,(alist->plist tail)))))))
+    (alist->plist (seq-filter
+                   (lambda (f) (not (equal (cdr f) 'unspecified)))
+                   (face-all-attributes face (or frame (selected-frame)))))))
+
 (defun org-brain-display-face (entry &optional face)
   "Return the final display face for ENTRY.
-If FACE is specified, and ENTRY is a file entry,
-return the file-entry face that corresponds to FACE.
-Otherwise return FACE."
-  (let* ((face-string (symbol-name (if (member entry org-brain-selected)
-                                       'org-brain-selected
-                                     (or face 'org-face-button))))
-         (display-face-string (concat face-string (if (org-brain-filep entry) "-file" ""))))
-    (intern display-face-string)))
+Takes FACE as a starting face, or `org-brain-button' if FACE is not specified.
+Applies the attributes in `org-brain-selected-face-template'
+and `org-brain-file-face-template' as appropriate."
+  (let ((selected-face-attrs
+         (when (member entry org-brain-selected)
+           (org-brain-specified-face-attrs 'org-brain-selected-face-template)))
+        (file-face-attrs
+         (when (org-brain-filep entry)
+           (org-brain-specified-face-attrs 'org-brain-file-face-template))))
+    (append (list :inherit (or face 'org-brain-button))
+            selected-face-attrs
+            file-face-attrs)))
 
 (defun org-brain-insert-visualize-button (entry &optional face)
   "Insert a button, running `org-brain-visualize' on ENTRY when clicked."
@@ -2037,7 +2014,7 @@ Helper function for `org-brain-visualize'."
     (insert "SELECTED:")
     (dolist (selection (sort (copy-sequence org-brain-selected) org-brain-visualize-sort-function))
       (insert "  ")
-      (org-brain-insert-visualize-button selection 'org-brain-selected))
+      (org-brain-insert-visualize-button selection 'org-brain-pinned))
     (insert "\n")))
 
 (defun org-brain--hist-entries-to-draw (max-width hist width to-draw)
