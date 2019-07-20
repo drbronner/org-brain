@@ -2062,18 +2062,22 @@ Helper function for `org-brain-visualize'."
 (defun org-brain--vis-parents-siblings (entry)
   "Insert parents and siblings of ENTRY.
 Helper function for `org-brain-visualize'."
-  (when-let ((siblings (org-brain-siblings entry)))
+  (when-let ((all-parent-siblings (org-brain-siblings entry)))
     (let ((parent-positions nil)
           (max-width 0))
-      (dolist (parent (sort siblings (lambda (x y)
-                                       (funcall org-brain-visualize-sort-function
-                                                (car x) (car y)))))
-        (let* ((parent-tags (org-brain-get-tags (car parent) t))
+      (dolist (parent-siblings
+               (sort all-parent-siblings
+                     (lambda (x y)
+                       (funcall org-brain-visualize-sort-function
+                                (car x) (car y)))))
+        (let* ((parent (car parent-siblings))
+               (siblings (cdr parent-siblings))
+               (parent-tags (org-brain-get-tags parent t))
                (children-links (if (member org-brain-exclude-siblings-tag parent-tags)
                                    nil
-                                 (cdr parent)))
+                                 siblings))
                (col-start (+ 3 max-width))
-               (parent-title (org-brain-title (car parent))))
+               (parent-title (org-brain-title parent)))
           (org-goto-line 5)
           (mapc
            (lambda (child)
@@ -2081,8 +2085,8 @@ Helper function for `org-brain-visualize'."
              (org-brain--insert-wire (make-string (1+ (string-width parent-title)) ?\ ) "+-")
              (org-brain-insert-visualize-button
               child
-              (if (and (member (car parent) (org-brain--local-parent child))
-                       (member (car parent) (org-brain--local-parent entry)))
+              (if (and (member parent (org-brain--local-parent child))
+                       (member parent (org-brain--local-parent entry)))
                   'org-brain-local-sibling
                 'org-brain-sibling))
              (setq max-width (max max-width (current-column)))
@@ -2097,8 +2101,8 @@ Helper function for `org-brain-visualize'."
                       (+ (current-column) (/ (string-width parent-title) 2)))
                 parent-positions)
           (org-brain-insert-visualize-button
-           (car parent)
-           (if (member (car parent) (org-brain--local-parent entry))
+           parent
+           (if (member parent (org-brain--local-parent entry))
                'org-brain-local-parent
              'org-brain-parent))
           (setq max-width (max max-width (current-column)))
