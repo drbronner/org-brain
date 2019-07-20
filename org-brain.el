@@ -276,8 +276,16 @@ Insert links using `org-insert-link'."
   '((t . (:inherit org-brain-button)))
   "Face for the entries' header-entry child nodes.")
 
+(defface org-brain-local-child
+  '((t . (:inherit org-brain-child :weight bold)))
+  "Face for the entries' header-entry child nodes.")
+
 (defface org-brain-sibling
   '((t . (:inherit org-brain-child)))
+  "Face for the entries' header-entry sibling nodes.")
+
+(defface org-brain-local-sibling
+  '((t . (:inherit org-brain-sibling :weight bold)))
   "Face for the entries' header-entry sibling nodes.")
 
 (defface org-brain-friend
@@ -2096,7 +2104,12 @@ Helper function for `org-brain-visualize'."
            (lambda (child)
              (picture-forward-column col-start)
              (org-brain--insert-wire (make-string (1+ (string-width parent-title)) ?\ ) "+-")
-             (org-brain-insert-visualize-button child 'org-brain-sibling)
+             (org-brain-insert-visualize-button
+              child
+              (if (and (member (car parent) (org-brain--local-parent child))
+                       (member (car parent) (org-brain--local-parent entry)))
+                  'org-brain-local-sibling
+                'org-brain-sibling))
              (setq max-width (max max-width (current-column)))
              (newline (forward-line 1)))
            (if (member org-brain-no-sort-children-tag parent-tags)
@@ -2176,10 +2189,13 @@ Helper function for `org-brain-visualize'."
       (dolist (child (if (member org-brain-no-sort-children-tag tags)
                          children
                        (sort children org-brain-visualize-sort-function)))
-        (let ((child-title (org-brain-title child)))
+        (let ((child-title (org-brain-title child))
+              (face (if (member entry (org-brain--local-parent child))
+                        'org-brain-local-child
+                      'org-brain-child)))
           (when (> (+ (current-column) (length child-title)) fill-col)
             (insert "\n"))
-          (org-brain-insert-visualize-button child 'org-brain-child)
+          (org-brain-insert-visualize-button child face)
           (insert "  "))))))
 
 (defun org-brain--vis-friends (entry)
