@@ -192,6 +192,11 @@ Only applies to headline entries."
   :group 'org-brain
   :type '(string))
 
+(defcustom org-brain-no-sort-children-tag "nosort"
+  "`org-mode' tag which makes each child of the headline entry be listed on its own line."
+  :group 'org-brain
+  :type '(string))
+
 (defcustom org-brain-wander-interval 3
   "Seconds between randomized entries, when using `org-brain-visualize-wander'."
   :group 'org-brain
@@ -2225,7 +2230,9 @@ Helper function for `org-brain-visualize'."
                 'org-brain-sibling))
              (setq max-width (max max-width (current-column)))
              (newline (forward-line 1)))
-           (sort children-links org-brain-visualize-sort-function))
+           (if (member org-brain-no-sort-children-tag parent-tags)
+               children-links
+             (sort children-links org-brain-visualize-sort-function)))
           (org-goto-line 5)
           (forward-line (1- (length children-links)))
           (picture-forward-column col-start)
@@ -2282,21 +2289,24 @@ Helper function for `org-brain-visualize'."
 (defun org-brain--vis-children (entry)
   "Insert children of ENTRY.
 Helper function for `org-brain-visualize'."
-  (when-let ((children (org-brain-children entry))
-             (fill-col (if (member org-brain-each-child-on-own-line-tag
-                                   (org-brain-get-tags entry))
-                           0
-                         (eval org-brain-child-linebreak-sexp))))
-    (insert "\n\n")
-    (dolist (child (sort children org-brain-visualize-sort-function))
-      (let ((child-title (org-brain-title child))
-            (face (if (member entry (org-brain--local-parent child))
-                      'org-brain-local-child
-                    'org-brain-child)))
-        (when (> (+ (current-column) (length child-title)) fill-col)
-          (insert "\n"))
-        (org-brain-insert-visualize-button child face)
-        (insert "  ")))))
+  (let ((tags (org-brain-get-tags entry t)))
+    (when-let ((children (org-brain-children entry))
+               (fill-col (if (member org-brain-each-child-on-own-line-tag
+                                     (org-brain-get-tags entry))
+                             0
+                           (eval org-brain-child-linebreak-sexp))))
+      (insert "\n\n")
+      (dolist (child (if (member org-brain-no-sort-children-tag tags)
+                         children
+                       (sort children org-brain-visualize-sort-function)))
+        (let ((child-title (org-brain-title child))
+              (face (if (member entry (org-brain--local-parent child))
+                        'org-brain-local-child
+                      'org-brain-child)))
+          (when (> (+ (current-column) (length child-title)) fill-col)
+            (insert "\n"))
+          (org-brain-insert-visualize-button child face)
+          (insert "  "))))))
 
 (defun org-brain--vis-friends (entry)
   "Insert friends of ENTRY.
