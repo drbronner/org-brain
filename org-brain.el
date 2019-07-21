@@ -76,6 +76,12 @@ will be considered org-brain entries."
 
 (load org-brain-data-file t)
 
+(defcustom org-brain-orphans-file "org-brain-orphans"
+  "Where orphaned headline entries are stored.
+Set to the empty string to disable automatic orphan refiling."
+  :group 'org-brain
+  :type '(directory))
+
 (defcustom org-brain-visualize-default-choices 'all
   "Which entries to choose from when using `org-brain-visualize'.
 If 'all, choose from all file and headline entries.
@@ -603,7 +609,8 @@ Isn't recursive, so do not parse local children."
   "Return alist of (name . entry-id) for all entries (including the file) in FILE."
   (let* ((file-relative (org-brain-path-entry-name file))
          (file-entry-name (org-brain-entry-name file-relative)))
-    (append (list (cons file-entry-name file-relative))
+    (append (when (not (equal file-relative org-brain-orphans-file))
+              (list (cons file-entry-name file-relative)))
             (with-temp-buffer
               (insert-file-contents file)
               (delay-mode-hooks
@@ -889,7 +896,8 @@ Uses `org-brain-entry-at-pt' for ENTRY, or asks for it if none at point."
                          (org-entry-get nil "ID"))
                     (org-brain-entry-from-id (org-entry-get nil "ID"))
                   (car entry))))))
-      (list parent)))
+      (when (not (equal parent org-brain-orphans-file))
+        (list parent))))
 
 (defun org-brain--local-children (entry)
   "Get file local children of ENTRY."
@@ -1065,6 +1073,9 @@ If chosen CHILD entry doesn't exist, create it as a new file.
 Several children can be added, by using `org-brain-entry-separator'."
   (interactive (list (org-brain-entry-at-pt)
                      (org-brain-choose-entries "Add child: " 'all)))
+  (when (or (equal entry org-brain-orphans-file)
+            (member org-brain-orphans-file children))
+    (error "Cannot add linked children or parents to the orphan file"))
   (dolist (child-entry children)
     (org-brain-add-relationship entry child-entry))
   (org-brain--revert-if-visualizing))
@@ -1125,11 +1136,17 @@ If called interactively use `org-brain-entry-at-point' and prompt for CHILD."
   "Add external PARENTS (a list of entries) to ENTRY.
 If called interactively use `org-brain-entry-at-pt' and prompt for PARENT.
 If chosen parent entry doesn't exist, create it as a new file.
-Several parents can be added, by using `org-brain-entry-separator'."
+Several parents can be added, by using `org-brain-entry-separator'.
+Orphaned entries are refiled into their new parents."
   (interactive (list (org-brain-entry-at-pt)
                      (org-brain-choose-entries "Add parent: " 'all)))
+  (when (or (equal org-brain-orphans-file entry)
+            (member org-brain-orphans-file parents))
+    (error "Cannot add linked children or parents to the orphan file"))
   (dolist (parent parents)
     (org-brain-add-relationship parent entry))
+  (when (equal org-brain-orphans-file (car (org-brain--local-parent entry)))
+    (org-brain-unlink-parent entry org-brain-orphans-file))
   (org-brain--revert-if-visualizing))
 
 ;;;###autoload
@@ -1175,6 +1192,9 @@ If chosen friend entry doesn't exist, create it as a new file.
 Several friends can be added, by using `org-brain-entry-separator'."
   (interactive (list (org-brain-entry-at-pt)
                      (org-brain-choose-entries "Add friend: " 'all)))
+  (when (or (equal entry org-brain-orphans-file)
+            (member org-brain-orphans-file friends))
+    (error "Cannot add friends to the orphan file"))
   (dolist (friend-entry friends)
     (org-brain--internal-add-friendship entry friend-entry))
   (org-brain--revert-if-visualizing))
@@ -1301,6 +1321,12 @@ This allows the user to quickly jump up the hierarchy."
     (error "This entry has no parent")))
 
 ;;;###autoload
+(defun org-brain-visualize-orphans ()
+  "Show all headline entries that have no parent."
+  (interactive)
+  (org-brain-visualize org-brain-orphans-file))
+
+;;;###autoload
 (defun org-brain-goto-friend (entry)
   "Goto a friend of ENTRY.
 If run interactively, get ENTRY from context."
@@ -1405,7 +1431,7 @@ If CHILD is a local child of ENTRY, CHILD is refiled to another parent."
 (defun org-brain-unlink-parent (entry parent)
   "Remove PARENT as a parent of ENTRY.
 If ENTRY is a local child of PARENT,
-ENTRY is refiled to another parent, chosen by the function."
+ENTRY is refiled to another parent, chosen by the function, or it is orphaned."
   (interactive (let ((e (org-brain-entry-at-pt)))
                  (list e (org-brain-choose-entry "Unlink parent: "
                                                  (org-brain-parents e)
@@ -1414,9 +1440,9 @@ ENTRY is refiled to another parent, chosen by the function."
     (let* ((linked-parents (org-brain--linked-property-entries entry "BRAIN_PARENTS"))
            (headline-parents (seq-filter (lambda (e) (not (org-brain-filep e))) linked-parents))
            (file-parents (seq-filter 'org-brain-filep linked-parents))
-           (new-parent (car (append headline-parents file-parents))))
-      (when (null new-parent)
-        (error "Cannot unlink a headline entry's last parent"))
+           (new-parent (car (append headline-parents file-parents (list org-brain-orphans-file)))))
+      (when (equal new-parent org-brain-orphans-file)
+        (org-brain-add-relationship org-brain-orphans-file entry))
       (setq entry (org-brain-change-local-parent entry new-parent))))
   (org-brain-remove-relationship parent entry)
   (org-brain--revert-if-visualizing))
