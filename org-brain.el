@@ -1352,7 +1352,8 @@ After refiling, all headlines will be given an id."
     (org-refile)))
 
 (defun org-brain-refile-to (entry parent)
-  "Refile ENTRY to be a local child of PARENT, returning the new refiled entry.
+  "Refile a headline ENTRY to be a local child of PARENT,
+Return the new refiled entry.
 
 If ENTRY is linked to PARENT before the refile, this relationship is removed.
 Pins, history, and selected lists are updated
@@ -1360,6 +1361,8 @@ to account for the change in ENTRY's local parent."
   (when (member parent (org-brain--local-descendants entry))
     (error "Cannot refile. New parent %s is a local descendant of %s"
            (org-brain-title parent) (org-brain-title entry)))
+  (when (org-brain-filep entry)
+    (error "Cannot refile a file entry"))
   (let ((entry-marker (org-brain-entry-marker entry))
         (parent-title (org-brain-title parent)))
     (if (org-brain-filep parent)
@@ -1387,9 +1390,9 @@ to account for the change in ENTRY's local parent."
           (_ (error "Parent headline with ID %s not found" id)))))
     (let ((new-entry (org-brain-entry-from-id (org-brain-entry-identifier entry))))
       (cl-flet ((replace-entry (e) (if (equal e entry) new-entry e)))
-        (setq org-brain-pins (mapcar 'replace-entry org-brain-pins))
-        (setq org-brain--vis-history (mapcar 'replace-entry org-brain--vis-history))
-        (setq org-brain-selected (mapcar 'replace-entry org-brain-selected)))
+        (setq org-brain-pins (mapcar #'replace-entry org-brain-pins))
+        (setq org-brain--vis-history (mapcar #'replace-entry org-brain--vis-history))
+        (setq org-brain-selected (mapcar #'replace-entry org-brain-selected)))
       (when (member parent
                     (org-brain--linked-property-entries new-entry "BRAIN_PARENTS"))
           (org-brain-remove-relationship parent new-entry))
@@ -1466,7 +1469,24 @@ If RECURSIVE is t, remove local children's relationships."
     (dolist (child (org-brain--local-children entry))
       (org-brain--remove-relationships child t))))
 
-;;;###autoload
+(defun org-brain-replace-entry (entry replacement)
+  "Replace all external links to ENTRY with links to REPLACEMENT.
+Also replace ENTRY with REPLACEMENT in the pinned, selected, and history lists."
+  (dolist (child (org-brain--linked-property-entries entry "BRAIN_CHILDREN"))
+    (org-brain-remove-relationship entry child)
+    (org-brain-add-relationship replacement child))
+  (dolist (parent (org-brain--linked-property-entries entry "BRAIN_PARENTS"))
+    (org-brain-remove-relationship parent entry)
+    (org-brain-add-relationship parent replacement))
+  (dolist (friend (org-brain-friends entry))
+    (org-brain-remove-friendship friend entry)
+    (org-brain-add-relationship friend replacement))
+  (cl-flet ((replace-entry (e) (if (equal e entry) replacement e)))
+    (setq org-brain-pins (mapcar #'replace-entry org-brain-pins))
+    (setq org-brain-selected (mapcar #'replace-entry org-brain-selected))
+    (setq org-brain--vis-history (mapcar #'replace-entry org-brain--vis-history))))
+
+;;;autoload
 (defun org-brain-rename-file (file-entry new-name)
   "Rename FILE-ENTRY to NEW-NAME.
 Both arguments should be relative to `org-brain-path' and should
