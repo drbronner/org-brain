@@ -895,6 +895,43 @@ Helper function for ~org-brain-refile-to~ to prevent bad refilings."
          (deactivate-mark)
          children)))))
 
+(defun org-brain-all-entries ()
+  "Return a list of all entries in the current brain."
+  (append (mapcar (lambda (brain-file)
+                    (let ((file-entry (org-brain-path-entry-name brain-file)))
+                      (cons file-entry (org-brain--local-descendants file-entry))))
+                  (directory-files org-brain-path t (concat "\\." org-brain-files-extension "$")))))
+
+(defun org-brain-clickify-links (entry)
+  "Foo ENTRY."
+  (if (org-brain-filep entry)
+      (with-current-buffer (find-file-noselect (org-brain-entry-path entry))
+        (goto-char (point-min))
+        (when (re-search-forward "^#\\+BRAIN_PARENTS:.*$" nil t)
+          ; (let* ((ids (cdr (split-string (thing-at-point 'line t))))
+           ;      (linked-ids (mapconcat (lambda (id) (concat "brain:" id)) ids " ")))
+            (replace-match (concat "#+BRAIN_PARENTS: " "foo"))))) ;; linked-ids)))))
+        ; (goto-char (point-min))
+        ; (when (re-search-forward "^#\\+BRAIN_CHILDREN:" nil t)
+        ;     (while (re-search-forward "\\(\\w\\|-\\)+")
+        ;       (replace-match "brain:\\&")))
+        ; (goto-char (point-min))
+        ; (when (re-search-forward "^#\\+BRAIN_FRIENDS:" nil t)
+        ;     (while (re-search-forward "\\(\\w\\|-\\)+")
+        ;       (replace-match "brain:\\&"))))
+    (dolist (id (org-brain--linked-property-entries entry "BRAIN_PARENTS"))
+      (let ((entry-marker (org-brain-entry-marker entry)))
+        (org-entry-remove-from-multivalued-property entry-marker "BRAIN_PARENTS" id)
+        (org-entry-add-to-multivalued-property entry-marker "BRAIN_PARENTS" (concat "brain:" id))))
+    (dolist (id (org-brain--linked-property-entries entry "BRAIN_CHILDREN"))
+      (let ((entry-marker (org-brain-entry-marker entry)))
+        (org-entry-remove-from-multivalued-property entry-marker "BRAIN_CHILDREN" id)
+        (org-entry-add-to-multivalued-property entry-marker "BRAIN_CHILDREN" (concat "brain:" id))))
+    (dolist (id (org-brain--linked-property-entries entry "BRAIN_FRIENDS"))
+      (let ((entry-marker (org-brain-entry-marker entry)))
+        (org-entry-remove-from-multivalued-property entry-marker "BRAIN_FRIENDS" id)
+        (org-entry-add-to-multivalued-property entry-marker "BRAIN_FRIENDS" (concat "brain:" id))))))
+
 (defun org-brain--linked-property-entries (entry property)
   "Get list of entries linked to in ENTRY by PROPERTY.
 PROPERTY could for instance be BRAIN_CHILDREN."
