@@ -792,7 +792,9 @@ Often you want the siblings too, then use `org-brain-siblings' instead."
   "Get children of ENTRY."
   (delete-dups
    (append (org-brain--linked-property-entries entry "BRAIN_CHILDREN")
-           (org-brain--local-children entry))))
+           (org-brain--local-children entry)
+           (ignore-errors (eval (car (read-from-string
+                       (org-entry-get (org-brain-entry-marker entry) "BRAIN_QUERY"))))))))
 
 (defun org-brain-descendants (entry)
   "Get all entries which descend from ENTRY.
