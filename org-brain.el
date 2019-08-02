@@ -972,8 +972,8 @@ Helper function for ~org-brain-refile-to~ to prevent bad refilings."
           (let* ((ids (cdr (split-string (thing-at-point 'line t))))
                  (linked-ids (mapconcat
                               (lambda (id)
-                                (if (string-match (concat "^" from-prefix "\\(.*\\)" id))
-                                    (replace-match (concat to-prefix "\\1") t t id)
+                                (if (string-match (concat "^" from-prefix "\\(.*\\)") id)
+                                    (replace-match (concat to-prefix "\\1") t nil id)
                                   id)) ids " ")))
             (beginning-of-line)
             (kill-line)
@@ -983,7 +983,7 @@ Helper function for ~org-brain-refile-to~ to prevent bad refilings."
           (let* ((ids (cdr (split-string (thing-at-point 'line t))))
                  (linked-ids (mapconcat
                               (lambda (id)
-                                (if (string-match (concat "^" from-prefix "\\(.*\\)" id))
+                                (if (string-match (concat "^" from-prefix "\\(.*\\)") id)
                                     (replace-match (concat to-prefix "\\1") t nil id)
                                   id)) ids " ")))
             (beginning-of-line)
@@ -994,7 +994,7 @@ Helper function for ~org-brain-refile-to~ to prevent bad refilings."
           (let* ((ids (cdr (split-string (thing-at-point 'line t))))
                  (linked-ids (mapconcat
                               (lambda (id)
-                                (if (string-match (concat "^" from-prefix "\\(.*\\)" id))
+                                (if (string-match (concat "^" from-prefix "\\(.*\\)") id)
                                     (replace-match (concat to-prefix "\\1") t nil id)
                                   id)) ids " ")))
             (beginning-of-line)
@@ -2547,6 +2547,16 @@ Helper function for `org-brain-visualize'."
             (picture-move-down 1))
           (org-brain--insert-wire "V"))))
     (picture-move-down 1)))
+
+(defun org-brain-get-tags (entry &optional inherit)
+  "Return the tags at ENTRY. Only use local tags unless INHERIT is non-nil."
+  (if (org-brain-filep entry)
+      (ignore-errors
+        (split-string
+         (cdr (assoc "FILETAGS" (org-brain-keywords entry))) ":" t))
+    (org-with-point-at
+        (org-brain-entry-marker entry)
+      (org-get-tags nil (not inherit)))))
 
 (defun org-brain--vis-children (entry)
   "Insert children of ENTRY.
